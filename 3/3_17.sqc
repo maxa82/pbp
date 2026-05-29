@@ -1,0 +1,168 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hDatPolaganja[11];
+short h1Ocena;
+short hOcena;
+short hGodinaUpisa;
+char hNaziv[151];
+double hProsecna;
+char hOznaka[21];
+sqlint32 hIdPredmeta;
+sqlint32 hIdUslovnogPredmeta;
+char hNazivUslovnog[151];
+sqlint32 hIdPrograma;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    
+/*
+Zadatak 3.17: Napisati C/SQL program koji ispisuje izveštaj za svaki predmet o njegovim uslovnim predmetima. Za svaki predmet ispisati informacije o identifikatoru predmeta i njegovom nazivu. Svaka sekcija koja izlistava informacije o uslovnim predmetima treba da ispisuje identifikator i naziv uslovnih predmeta za tekući predmet za koji se pravi sekcija, pri čemu se prikazuju informacije samo o onim uslovnim predmetima za koje postoji polaganje sa ocenom 10 na osnovnim akademskim studijama čiji je datum polaganja bio pre 2018. godine.
+*/
+    
+    
+
+    EXEC SQL 
+            DECLARE cPredmeti  CURSOR FOR
+            SELECT      ID,
+                        NAZIV
+            FROM        DA.PREDMET;
+    checkSQL("DECLARE");
+    
+    EXEC SQL 
+        DECLARE     cUslovniPredmeti CURSOR FOR
+        SELECT      UP.IDUSLOVNOGPREDMETA,
+                    (SELECT NAZIV FROM DA.PREDMET WHERE ID = UP.IDUSLOVNOGPREDMETA)
+        FROM        DA.USLOVNIPREDMET UP
+        WHERE       UP.IDPREDMETA = :hIdPredmeta AND EXISTS (
+                            SELECT *
+                            FROM    DA.ISPIT I JOIN DA.DOSIJE D ON D.INDEKS = I.INDEKS JOIN
+                                    DA.STUDIJSKIPROGRAM SP ON SP.ID = D.IDPROGRAMA JOIN DA.NIVOKVALIFIKACIJE NK
+                                    ON NK.ID = SP.IDNIVOA
+                            WHERE   I.OCENA = 10 AND NK.NAZIV = 'Osnovne akademske studije' AND YEAR(I.DATPOLAGANJA) < 2018
+                                    AND I.IDPREDMETA = UP.IDUSLOVNOGPREDMETA
+        );
+    checkSQL("DECLARE");
+    
+    EXEC SQL OPEN cPredmeti;
+    checkSQL("OPEN");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cPredmeti
+            INTO    :hIdPredmeta,
+                    :hNaziv;
+        checkSQL("FETCH");
+        
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\n**************************************\n");
+        printf("Predmet koji se razmatra je %s (%d)\n", hNaziv, hIdPredmeta);
+        printf("\n**************************************\nUslovni predmeti su:\n");
+        
+        EXEC SQL OPEN cUslovniPredmeti;
+        checkSQL("OPEN");
+        
+        
+        while(1)
+        {
+            EXEC SQL 
+            FETCH   cUslovniPredmeti
+            INTO    :hIdUslovnogPredmeta,
+                    :hNazivUslovnog;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\t - %s (%d)\n", hNazivUslovnog, hIdUslovnogPredmeta);
+        
+        }
+        
+        
+        EXEC SQL CLOSE cUslovniPredmeti;
+        checkSQL("CLOSE");
+        
+    }
+
+    
+    EXEC SQL CLOSE cPredmeti;
+    checkSQL("CLOSE");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
