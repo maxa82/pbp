@@ -1,0 +1,190 @@
+
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sql.h>
+
+
+EXEC SQL INCLUDE SQLCA;
+
+/*
+Zadatak 2.4: Napisati naredne funkcije:
+
+Napisati funkciju void insertNewCourse() koja sa standardnog ulaza učitava podatke o identifikatoru, oznaci, nazivu i bodovima za novi predmet na fakultetu. Potrebno je uneti te podatke u tabelu PREDMET. Nakon toga, odgovarajućom naredbom proveriti da li su podaci dobro uneti i ispisati ih.
+
+Napisati funkciju void updateNewCourse() koja izvršava ažuriranje podataka za novouneseni predmet, tako što se broj bodova duplo povećava i nakon čega se podaci izlistavaju ponovo.
+
+Napisati funkciju void deleteNewCourse() koja briše novouneseni predmet iz baze podataka.
+
+Napisati i C/SQL program koji testira napisane funkcije.
+
+
+*/
+
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hId;
+char hOznaka[21];
+char hNaziv[151];
+short hESPB;
+
+sqlint32 h1Id;
+char h1Oznaka[21];
+char h1Naziv[151];
+short h1ESPB;
+EXEC SQL END DECLARE SECTION;
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+    
+    
+}
+
+void izlistaj()
+{
+    printf("\nprovera da li su podaci zapravo uneti/izmenjeni\n");
+    
+    EXEC SQL
+        SELECT  P.ID,
+                P.OZNAKA,
+                P.NAZIV,
+                P.ESPB 
+        INTO    :h1Id,
+                :h1Oznaka,
+                :h1Naziv,
+                :h1ESPB 
+        FROM    DA.PREDMET P
+        WHERE   P.ID = :hId;
+    checkSQL("SELECT INTO");
+    
+    printf("\nSELECT INTO JE IZVRSEN\n");
+    
+    printf("\nrezultat: %d %s %s %hd\n", h1Id, h1Oznaka, h1Naziv, h1ESPB);
+    
+}
+
+void insertNewCourse()
+{
+    
+    EXEC SQL 
+        INSERT  INTO DA.PREDMET
+        VALUES (:hId, :hOznaka, :hNaziv, :hESPB);
+    checkSQL("INSERT INTO");
+    
+    izlistaj();
+    
+}
+
+
+void updateNewCourse()
+{
+    
+    EXEC SQL 
+        UPDATE   DA.PREDMET
+        SET     ESPB = ESPB*2
+        WHERE   ID = :hId;
+    checkSQL("UPDATE");
+    
+    izlistaj();
+    
+}
+
+void deleteNewCourse()
+{
+    EXEC SQL 
+        DELETE  FROM DA.PREDMET
+        WHERE   ID = :hId;
+    checkSQL("DELETE");
+}
+
+int main()
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    printf("unesite id, oznaku, naziv i bodove za novi predmet:\n");
+    scanf("%d %s %s %hd", &hId, hOznaka, hNaziv, &hESPB);
+    
+    insertNewCourse();
+    
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
