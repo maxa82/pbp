@@ -1,0 +1,283 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+
+sqlint32 hIndeks;
+sqlint32 hIdPredmeta;
+sqlint32 h1IdPredmeta;
+sqlint32 hIdPrograma;
+char hNazivPredmeta[151];
+
+
+sqlint32 hBrojStudenata;
+double  hProlaznost;
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+typedef struct {
+    short IdPredmeta;
+    char  NazivPredmeta[151];
+} predmet;
+
+  /*
+Zadatak 5.12: Napisati C/SQL program koji omogućava studentu prijavu na praksu i redom:\n \n
+
+- Ispisuje spisak identifikatora i naziva predmeta za koje može da se prijavi student sa brojem indeksa koji se unosi sa standardnog ulaza. Studentu se nude samo predmeti koje je položio sa ocenom većom od prosečne ocene sa položenih ispita iz tog predmeta i oni koji se ne nalaze u tabeli PRAKSA2020 za odabranog studenta. \n
+
+
+- Omogućava odabir jednog predmeta unosom odgovarajućeg identifikatora sa spiska ili unos 0 za kraj. Odabrani predmet se unosu u tabelu PRAKSA2020 ukoliko ispunjava uslove. Posle svakog odabranog predmeta, program nudi studentu izmenjeni spisak predmeta na kom se ne nalaze već odabrani predmeti i postupak se ponavlja. \n
+
+
+- Ispisuje izveštaj koji za svaki prijavljeni predmet sadrži naziv predmeta, broj do tada prijavljenih studenata za praksu iz tog predmeta, prosečnu prolaznost iz tog predmeta. Izveštaj urediti opadajuće po prolaznosti. Prolaznost se računa kao količnik broja položenih ispita sa ocenom većom od 5 nevezano za status prijave i broj izlazaka na ispit (broj unosa u tabeli ISPIT sa statusom prijave različitim od n). \n
+
+
+Obrada jedne prijave na praksu treba da predstavlja jednu transakciju.
+
+
+ */
+
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    printf("unesite indeks studenta:\n");
+    scanf("%d", &hIndeks);
+    getchar();
+    
+    EXEC SQL 
+        DECLARE     cPredmeti   CURSOR WITH HOLD FOR
+        WITH PROSECI AS (
+            SELECT  AVG(I.OCENA + 0.00) AS PROSEK,
+                    I.IDPREDMETA
+            FROM    DA.ISPIT I
+            WHERE   I.OCENA > 5 AND I.STATUS = 'o'
+            GROUP BY    I.IDPREDMETA
+        )
+        SELECT      P.ID,
+                    P.NAZIV
+        FROM        DA.PREDMET P
+        WHERE       EXISTS (SELECT * FROM DA.ISPIT I WHERE I.IDPREDMETA = P.ID AND :hIndeks = I.INDEKS AND I.STATUS = 'o' AND I.OCENA > 5) AND (SELECT I.OCENA FROM DA.ISPIT I WHERE I.IDPREDMETA = P.ID AND :hIndeks = I.INDEKS AND I.STATUS = 'o' AND I.OCENA > 5) > (SELECT P1.PROSEK FROM PROSECI P1 WHERE P1.IDPREDMETA = P.ID) AND (:hIndeks, P.ID) NOT IN (SELECT * FROM DA.PRAKSA2020);
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL 
+            DECLARE     cPrijavljeni   CURSOR WITH HOLD FOR
+            SELECT      (SELECT NAZIV FROM DA.PREDMET WHERE ID = PR.IDPREDMETA),
+                        COUNT(DISTINCT PR.INDEKS),
+                        ((SELECT COUNT(*) FROM DA.ISPIT I1 WHERE I1.IDPREDMETA = PR.IDPREDMETA AND I1.OCENA > 5) / (1.00 * (SELECT COUNT(*) FROM DA.ISPIT I2 WHERE I2.IDPREDMETA = PR.IDPREDMETA AND I2.STATUS <> 'n'))) * 100
+    
+            FROM        DA.PRAKSA2020 PR
+            GROUP BY    PR.IDPREDMETA
+            ORDER BY    3 DESC;
+    checkSQL("DECLARE 2");
+
+    printf("Za datog studenta sa indeksom %d izdvojeni su sledeci predmeti:\n", hIndeks);
+    
+    int broj_predmeta = 0;
+    predmet Predmeti[1024];
+    
+    while(1){
+        
+        
+    EXEC SQL OPEN cPredmeti;
+    checkSQL("OPEN");
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH       cPredmeti
+            INTO        :hIdPredmeta,
+                        :hNazivPredmeta;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        Predmeti[broj_predmeta].IdPredmeta = hIdPredmeta;
+        memset(Predmeti[broj_predmeta].NazivPredmeta, '\0', sizeof(Predmeti[broj_predmeta].NazivPredmeta));
+        strcpy(Predmeti[broj_predmeta].NazivPredmeta, hNazivPredmeta); // = :hIdPredmeta;
+        
+        broj_predmeta++;
+        
+    }
+    
+    int i = 0;
+    
+    while(i < broj_predmeta)
+    {
+        printf("\t - (ID) %hd (NAZIV) %s\n", Predmeti[i].IdPredmeta, Predmeti[i].NazivPredmeta);
+        
+        
+        i++;
+    }
+    
+    printf("Odaberite jedan predmet unosom odgovarajuceg ID sa spiska ili 0 za kraj.\n");
+    
+    int odg = -1;
+    scanf("%d", &odg);
+    
+    getchar();
+    
+    if(odg != 0)
+    {
+        int i = 0;
+    
+        while(i < broj_predmeta){
+            if(Predmeti[i].IdPredmeta == odg)
+                break;
+         i++;   
+        }
+        
+        h1IdPredmeta = Predmeti[i].IdPredmeta;
+        
+        EXEC SQL 
+            INSERT INTO DA.PRAKSA2020
+            VALUES  (:hIndeks, :h1IdPredmeta);
+        checkSQL("INSERT INTO");
+            
+        
+    }else {
+        printf("Uneta je 0! Biranje se prekida . . . \n");
+        
+        
+        
+        EXEC SQL CLOSE cPredmeti;
+        checkSQL("CLOSE");
+        
+        break;
+        
+    }
+    
+    broj_predmeta = 0;
+    
+    EXEC SQL CLOSE cPredmeti;
+    checkSQL("CLOSE");
+    
+    
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    
+    }
+    
+    EXEC SQL OPEN cPrijavljeni;
+    checkSQL("OPEN");
+    
+    printf("\n\nIzvestaj za tabelu PRAKSA2020:\n");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cPrijavljeni
+            INTO    :hNazivPredmeta,
+                    :hBrojStudenata,
+                    :hProlaznost;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        
+        printf("\t - %s %d %.2lf\n", hNazivPredmeta, hBrojStudenata, hProlaznost
+        );
+    }
+    
+    
+    EXEC SQL CLOSE cPrijavljeni;
+    checkSQL("CLOSE");
+   
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
