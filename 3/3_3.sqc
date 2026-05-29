@@ -1,0 +1,158 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hId;
+char hOznaka[11];
+char hNaziv[51];
+short hIdNivoa;
+short hObimESPB;
+char hZvanje[101];
+struct {
+    short int length;
+    char data [32700];
+    
+} hOpis;
+short iOpis;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.3: Napisati C/SQL program kojim se za svaki od studijskih programa korisniku postavlja pitanje da li želi da uveća broj bodova za 10. Ako je odgovor potvrdan, vrši se odgovarajuća promena.
+*/
+
+    EXEC SQL 
+        DECLARE cBodovi CURSOR FOR
+        SELECT  ID,
+                OZNAKA,
+                NAZIV,
+                IDNIVOA,
+                OBIMESPB,
+                ZVANJE,
+                OPIS 
+        FROM    DA.STUDIJSKIPROGRAM
+        FOR     UPDATE OF OBIMESPB;
+    checkSQL("DECLARE CURSOR");
+    
+    
+    
+    EXEC SQL OPEN cBodovi;
+    checkSQL("OPEN");
+
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cBodovi
+            INTO    :hId, 
+                    :hOznaka,
+                    :hNaziv,
+                    :hIdNivoa,
+                    :hObimESPB,
+                    :hZvanje,
+                    :hOpis :iOpis;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("da li zelite da uvecate broj espb bodova (tretnih %hd) za 10 za"
+            " studijski program %d %s %s %hd? [d/n]\n", hObimESPB, hId, hOznaka, hNaziv, hIdNivoa
+        );
+        
+        char odg = getchar(); getchar(); // za novi red 
+        
+        if(odg == 'd')
+        {
+            EXEC SQL 
+                UPDATE  DA.STUDIJSKIPROGRAM
+                SET     OBIMESPB = OBIMESPB + 10
+                WHERE   CURRENT OF cBodovi;
+            checkSQL("UPDATE");
+            
+            EXEC SQL 
+                SELECT      OBIMESPB
+                INTO        :hObimESPB
+                FROM        DA.STUDIJSKIPROGRAM
+                WHERE       ID = :hId;
+            checkSQL("SELECT INTO");
+            
+            printf("Bodovi su uspesno azurirani za studijski program %d %s %s %hd! \n Novi bodovi iznose : %hd\n", hId, hOznaka, hNaziv, hIdNivoa, hObimESPB);
+            
+        }else
+            continue;
+        
+    }
+    
+    
+    EXEC SQL CLOSE cBodovi;
+    checkSQL("CLOSE");
+
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
