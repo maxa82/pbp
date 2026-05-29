@@ -1,0 +1,317 @@
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIdPredmeta;
+sqlint32 hIdPrograma;
+short hSemestar;
+
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+
+
+short hSkGodina;
+char hOznakaRoka[21];
+char hNazivRoka[31];
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+Zadatak 5.14: 
+
+
+Napisati C/SQL program koji omogućava korisniku da obriše informacije o studentima koji su upisani u godini koja se unosi sa standardnog ulaza. Za svakog studenta, program pita korisnika da li želi da obriše informacije. Ako korisnik potvrdi, obrisati podatke iz tabela ISPIT, UPISANKURS, UPISGODINE, PRIZNATIISPIT, DOSIJEEXT i DOSIJE (tim redosledom) za tekućeg studenta i ispisati poruku o uspešnosti brisanja za svaku tabelu ponaosob. Nakon toga, aplikacija pita korisnika da li želi da izvrši potvrđivanje ili poništavanje dotadašnjih izmena. Korisnik može da bira jednu od tri opcije:
+
+    1. Izvršavanje potvrđivanja
+    2. Izvršavanje poništavanja
+    3. Bez akcije
+    
+U slučaju akcija 1. i 2. potrebno je izvršiti odgovarajuću SQL naredbu i prikazati poruku korisniku o uspešnosti akcije. Takođe ispisati i informaciju o tome za koliko studenata je izvršeno potvrđivanje/poništavanje, na primer: 'TRANSAKCIJA JE ZAVRSENA: POTVRDILI STE BRISANJE 7 STUDENATA' ili 'TRANSAKCIJA JE ZAVRSENA: PONIŠTILI STE BRISANJE 7 STUDENATA' (ukoliko je pre tekuće akcije korisnik 7 puta odabrao 3. akciju).
+
+U slučaju akcije 3. potrebno je samo uvećati broj studenata koji je obrisan u tekućoj jedinici posla. Naravno, prilikom izvršavanja akcije 1. ili 2. ovaj broj se mora postaviti na 0.
+
+
+
+*/
+
+
+sqlint32 nizStudenata[10000];
+int velicina_niza = 0;
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    
+    printf("unesite godinu:\n");
+    scanf("%hd", &hSkGodina);
+    getchar();
+    
+    EXEC SQL 
+        DECLARE     cStudenti   CURSOR WITH HOLD FOR
+        SELECT      D.INDEKS,
+                    D.IME,
+                    D.PREZIME
+        FROM        DA.DOSIJE D
+        WHERE       YEAR(D.DATUPISA) = :hSkGodina AND D.INDEKS NOT IN (SELECT * FROM DA.OBRADJENI);
+    checkSQL("DECLARE CURSOR");
+    
+    
+    EXEC SQL OPEN cStudenti;
+    checkSQL("OPEN 1");
+    
+    int broj = 0;
+    
+    while(1)
+    {
+        EXEC SQL  
+                FETCH   cStudenti
+                INTO    :hIndeks,
+                        :hIme,
+                        :hPrezime;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        
+        
+        int i = 0;
+        int indikator = -1;
+        
+        while(i < velicina_niza)
+        {
+            if(nizStudenata[i] == hIndeks)
+            {
+                indikator = 1;
+                break;
+            }
+            i++;
+        }
+        
+        if(indikator == 1)
+            continue;
+        
+        nizStudenata[velicina_niza] = hIndeks;
+        velicina_niza++;
+        
+        
+        printf("Da li zelite da izbrisete podatke za studenta %d %s %s? [d/n]\n", hIndeks, hIme, hPrezime);
+        
+        
+    
+        
+        char odg = getchar(); getchar();
+        
+        if(odg == 'd')
+            
+            
+        {
+            
+//             EXEC SQL 
+//                 INSERT INTO DA.OBRADJENI 
+//                 VALUES  (:hIndeks);
+//             checkSQL("INSERT INTO DA.OBRADJENI");
+            
+            broj++;
+            
+            EXEC SQL 
+                DELETE FROM DA.ISPIT 
+                WHERE INDEKS = :hIndeks;
+            checkSQL("DELETE DA.ISPIT");
+            
+            printf("Uspesno su obrisani podaci iz tabele DA.ISPIT!\n");
+            
+            EXEC SQL 
+                DELETE FROM DA.UPISANKURS 
+                WHERE INDEKS = :hIndeks;
+            checkSQL("DELETE DA.UPISANKURS");
+            
+            printf("Uspesno su obrisani podaci iz tabele DA.UPISANKURS!\n");
+            
+            EXEC SQL 
+                DELETE FROM DA.UPISGODINE 
+                WHERE INDEKS = :hIndeks;
+            checkSQL("DELETE DA.UPISGODINE");
+            
+            printf("Uspesno su obrisani podaci iz tabele DA.UPISGODINE!\n");
+            
+            EXEC SQL 
+                DELETE FROM DA.PRIZNATISPIT 
+                WHERE INDEKS = :hIndeks;
+            checkSQL("DELETE DA.PRIZNATISPIT");
+            
+            printf("Uspesno su obrisani podaci iz tabele DA.PRIZNATISPIT!\n");
+            
+            EXEC SQL 
+                DELETE FROM DA.DOSIJEEXT 
+                WHERE INDEKS = :hIndeks;
+            checkSQL("DELETE DA.DOSIJEEXT");
+            
+            printf("Uspesno su obrisani podaci iz tabele DA.DOSIJEEXT!\n");
+            
+            EXEC SQL 
+                DELETE FROM DA.DOSIJE 
+                WHERE INDEKS = :hIndeks;
+            checkSQL("DELETE DA.DOSIJE");
+            
+            printf("Uspesno su obrisani podaci iz tabele DA.DOSIJE!\n");
+            
+            printf("Izaberite jednu od ponudjene tri opcije: [1-3]\n\t 1) Izvršavanje potvrđivanja\n\t 2) Izvršavanje poništavanja\n\t 3) Bez akcije\n");
+            
+            char odg1 = getchar(); getchar();
+            
+            
+            
+            if(odg1 == '1')
+            {
+                EXEC SQL COMMIT;
+                checkSQL("COMMIT");
+                
+                printf("TRANSAKCIJA JE ZAVRSENA: POTVRDILI STE BRISANJE ZA %d STUDENATA\n", 
+                       broj);
+                
+                broj = 0;
+                
+            }else if(odg1 == '2')
+            {
+                EXEC SQL ROLLBACK;
+                checkSQL("ROLLBACK");
+                
+                
+                printf("TRANSAKCIJA JE ZAVRSENA: PONISTILI STE BRISANJE ZA %d STUDENATA\n", 
+                       broj);
+                
+                broj = 0;
+                
+                EXEC SQL OPEN cStudenti;
+                checkSQL("OPEN ROLLBACK");
+                
+            }else if(odg1 == '3')
+            {
+                continue;
+            }
+            
+            
+        }else{
+            
+            continue;
+        }
+        
+        
+        
+    }
+    EXEC SQL CLOSE cStudenti;
+    checkSQL("CLOSE 1");
+    
+   
+   
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
