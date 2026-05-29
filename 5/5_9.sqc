@@ -1,0 +1,219 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIndeks;
+short hGodina;
+short hOdabrana_godina;
+char hNazivPredmeta[151];
+short hOcena;
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
+/*
+Zadatak 5.9: 
+
+Napisati C/SQL program koji koji pronalazi indekse i nazive predmeta za sva polaganja koja su bila neuspešna. Sortirati podatke po indeksu rastuće.
+
+Obezbediti da aplikacija briše podatke o najviše 10 studenata. Jednu transakciju čine brisanja za sve pronađene studente. 
+
+Prilikom obrade podataka, ispisati informacije o indeksu studenta, a zatim prikazati nazive predmeta za obrisana polaganja tog studenta. Nakon brisanja podataka o jednom studentu, upitati korisnika da li želi da poništi izmene za tog studenta (voditi računa da brisanja za sve prethodne studente ostanu nepromenjena).
+
+
+ */
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    
+    EXEC SQL
+        DECLARE cIndeksi CURSOR WITH HOLD FOR
+        SELECT DISTINCT I.INDEKS
+        FROM            DA.ISPIT I
+        WHERE EXISTS (SELECT * FROM DA.ISPIT I1 WHERE I1.INDEKS = I.INDEKS AND 
+            I1.STATUS = 'o' AND I1.OCENA = 5
+        )
+        ORDER BY 1 ASC;
+    checkSQL("DECLARE 0. . . ");
+    
+    EXEC SQL 
+            DECLARE cPolaganja CURSOR WITH HOLD FOR
+            SELECT      (SELECT NAZIV FROM DA.PREDMET WHERE ID = I.IDPREDMETA)
+            FROM        DA.ISPIT I
+            WHERE       I.INDEKS = :hIndeks AND I.OCENA = 5 AND I.STATUS = 'o';
+            
+    checkSQL("DECLARE 1");
+   
+    
+    EXEC SQL OPEN cIndeksi;
+    checkSQL("OPEN 1");
+    
+    int broj_obrisanih = 0;
+    int a = -1;
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cIndeksi
+            INTO    :hIndeks;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        
+        
+        if(a != hIndeks)
+        {   
+            if(a != -1)
+            {
+                printf("da li zelite da ponistite izmene za datog studenta (%d)? [d/n]\n", a);
+                
+                char odg = getchar(); getchar();
+                
+                if(odg == 'd')
+                {
+                    EXEC SQL ROLLBACK;
+                    checkSQL("ROLLBACK");
+                }else{
+                    EXEC SQL COMMIT;
+                    checkSQL("COMMIT");
+                    broj_obrisanih++;
+                }
+            }
+            
+            
+            a = hIndeks;
+        }
+        
+        if(broj_obrisanih == 10)
+            break;
+        
+        
+        printf("Brisu se podaci za studenta %d i predmete:\n", hIndeks);
+        
+        EXEC SQL OPEN cPolaganja;
+        checkSQL("OPEN 2");
+        
+        while(1)
+        {
+            EXEC SQL 
+                FETCH   cPolaganja
+                INTO    :hNazivPredmeta;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\t - %s\n", hNazivPredmeta);
+            
+        EXEC SQL
+            DELETE FROM DA.ISPIT
+            WHERE   CURRENT OF cPolaganja;
+        checkSQL("DELETE FROM");
+        
+        }
+        
+        EXEC SQL CLOSE cPolaganja;
+        checkSQL("CLOSE 2");
+        
+        
+    }
+    
+    EXEC SQL CLOSE cIndeksi;
+    checkSQL("CLOSE 1");
+   
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
