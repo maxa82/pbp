@@ -1,0 +1,162 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+// U ovom primeru ilustrujemo kako je moguce smestiti jedan red iz tabele u C strukturu.
+// S obzirom da ova struktura predstavlja jedan ceo red u tabeli DA.ISPITNIROK,
+// neophodno je da redosled polja u strukturi odgovara redosledu kolona u tabeli
+// (iako imena polja i kolona ne moraju da budu identicna).
+EXEC SQL BEGIN DECLARE SECTION;
+
+double hProsek;
+short hSkGodina;
+char hOznakaRoka[21];
+sqlint32 hIdPredmeta;
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+/*
+ Zadatak 5.6: 
+ 
+ 
+ Napisati C/SQL program koji izračunava statistiku polaganja predmeta po ispitnim rokovima i te podatke upisuje u tabelu STATISTIKAPOLAGANJA. 
+ 
+ Program prvo ispisuje procenat položenih ispita u odnosu na ukupan broj polaganih ispita za predmete po ispitnim rokovima, ali samo za one predmete u ispitnim rokovima koji nemaju statistiku, pa zatim beleži izračunatu statistiku. Nakon unosa polaganja, pitati korisnika da li želi da poništi zabeleženu statistiku, ali omogućiti da se sačuva informacija o tome da je statistika zabeležena (tj. da kolona USPESNOST bude NULL). Cela obrada jednog predmeta u jednom ispitnom roku predstavlja jednu transakciju.
+
+
+ */
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    
+    EXEC SQL 
+        DECLARE cStatistika CURSOR WITH HOLD FOR
+        SELECT      ROUND((SUM(CASE WHEN I.OCENA > 5 AND I.STATUS = 'o' THEN 1 ELSE 0 END)/                    (COUNT(*) + 0.00)) * 100, 2),
+                    I.OZNAKAROKA,
+                    I.IDPREDMETA,
+                    I.SKGODINA
+        FROM        DA.ISPIT I
+        WHERE       (I.SKGODINA, I.OZNAKAROKA, I.IDPREDMETA) NOT IN (SELECT SP.SKGODINA, SP.OZNAKAROKA, SP.IDPREDMETA FROM  DA.STATISTIKAPOLAGANJA SP)
+        GROUP BY    I.OZNAKAROKA, I.SKGODINA, I.IDPREDMETA;
+    checkSQL("DECLARE CURSOR");
+    
+    
+    
+    EXEC SQL OPEN cStatistika;
+    checkSQL("OPEN");
+    
+    while(1)
+    {
+        
+        EXEC SQL 
+            FETCH       cStatistika
+            INTO        :hProsek,
+                        :hOznakaRoka,
+                        :hIdPredmeta,
+                        :hSkGodina;
+        checkSQL("FETCH INTO");
+        
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("Uspenost polaganja za predmet %d u roku %s %hd je %.2lf\n", hIdPredmeta,
+            hOznakaRoka, hSkGodina, hProsek
+        );
+        
+        EXEC SQL SAVEPOINT tacka ON ROLLBACK RETAIN CURSORS;
+        checkSQL("SAVEPOINT");
+        
+        EXEC SQL 
+            INSERT INTO DA.STATISTIKAPOLAGANJA
+            VALUES (:hSkGodina, :hOznakaRoka, :hIdPredmeta, :hProsek);
+        checkSQL("INSERT INTO");
+        
+        printf("Da li zelite da ponistite prethodni unos? [d/n]\n");
+        
+        char odg = getchar(); getchar();
+        
+        if(odg == 'd')
+        {
+            EXEC SQL ROLLBACK TO SAVEPOINT tacka;
+            checkSQL("ROLLBACK TO SAVEPOINT");
+            
+            printf("Unos nije sacuvan, ali je unet u tabelu sa NULL prosekom!\n");
+            
+            EXEC SQL 
+                INSERT INTO DA.STATISTIKAPOLAGANJA
+                VALUES (:hSkGodina, :hOznakaRoka, :hIdPredmeta, NULL);
+            checkSQL("INSERT INTO");
+            
+        }else{
+            printf("Unos jeste sacuvan!\n");
+        }
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+     }
+    
+    EXEC SQL CLOSE cStatistika;
+    checkSQL("CLOSE");
+    
+    
+
+
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
