@@ -1,0 +1,164 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIdPredmeta;
+sqlint32 hIdPrograma;
+short hSemestar;
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
+/*
+Zadatak 5.10: 
+
+Napisati C/SQL program koji za svaki predmet koji je obavezan na smeru čiji je identifikator 103, pita korisnika da li želi da poveća broj bodova za 1. Ukoliko je odgovor korisnika ‘da’, izvršava se odgovarajuća naredba. Obrada jednog predmeta treba da predstavlja jednu transakciju.
+
+
+ */
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    EXEC SQL 
+        DECLARE     cPredmeti CURSOR WITH HOLD FOR
+        SELECT      IDPREDMETA,
+                    SEMESTAR
+        FROM        DA.PREDMETPROGRAMA
+        WHERE       VRSTA = 'obavezan' AND IDPROGRAMA = 103;
+    checkSQL("DECLARE 1");
+    
+    
+    EXEC SQL OPEN cPredmeti;
+    checkSQL("OPEN 1");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH       cPredmeti
+            INTO        :hIdPredmeta,
+                        :hSemestar;
+        checkSQL("FETCH INTO");
+        
+        
+        printf("obavezan predmet na programu 103 sa idPredmeta %d u semestru %hd\n", hIdPredmeta, hSemestar);
+        printf("Da li zelite da povecate broj ESPB bodova za 1? [d/n]\n");
+        
+        char odg = getchar(); getchar();
+        
+        if(odg == 'd')
+        {
+                EXEC SQL 
+                    UPDATE DA.PREDMET 
+                    SET ESPB = ESPB + 1
+                    WHERE ID = :hIdPredmeta;
+                checkSQL("UPDATE DA.PREDMET");
+                
+                printf("Uspeno azuriran broj bodova!\n");
+        }
+        
+        EXEC SQL COMMIT;
+        checkSQL("COMMIT");
+        
+        
+        
+    }
+    
+    
+    EXEC SQL CLOSE cPredmeti;
+    checkSQL("CLOSE 1");
+   
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
