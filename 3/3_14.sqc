@@ -1,0 +1,164 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hOznakaRoka[21];
+short h1Ocena;
+short hOcena;
+short hGodinaRoka;
+char hNaziv[151];
+double hProsecna;
+short hN;
+sqlint32 hIdPredmeta;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    printf("Unesite broj N:\n");
+    
+    scanf("%hd", &hN);
+    
+    
+/*
+Zadatak 3.14: Napisati C/SQL program kojim se brišu sva uspešna polaganja ispita iz barem trećeg pokušaja za studente koji su upisivali najviše N godina, gde se vrednost za N unosi sa standardnog ulaza.
+
+   20150001        2166
+   20150002        1595
+   20150003        1600
+   20150003        2376
+   20150003        2357
+   20150003        2167
+   20150003        2166
+   20150003        1937
+   20150003        1881
+   20150003        1878
+
+*/
+    
+    EXEC SQL 
+        DECLARE cUspenoMakarIzTreceg    CURSOR FOR
+        WITH TMP AS (
+                SELECT  D.INDEKS
+                -- IME,
+                -- PREZIME,
+                -- ((YEAR(MAX(UG.DATUPISA)) - YEAR(D.DATUPISA)) + 1) BROJ_UPISANIH_GODINA
+                FROM    DA.DOSIJE D JOIN DA.UPISGODINE UG ON UG.INDEKS = D.INDEKS
+                GROUP BY D.INDEKS, IME, PREZIME, D.DATUPISA
+                HAVING ((YEAR(MAX(UG.DATUPISA)) - YEAR(D.DATUPISA)) + 1) <= :hN
+        ),
+        TMP1 AS (
+            SELECT  I1.INDEKS, I1.IDPREDMETA
+            FROM DA.ISPIT I1 
+            WHERE I1.OCENA = 5 AND I1.STATUS = 'o' 
+            GROUP BY I1.INDEKS, I1.IDPREDMETA
+            HAVING COUNT(*) >= 2
+        )
+        SELECT  I.INDEKS,
+                I.IDPREDMETA
+        FROM    DA.ISPIT I
+        WHERE   I.INDEKS IN (SELECT * FROM TMP) AND I.OCENA > 5 AND I.STATUS = 'o' AND
+                EXISTS (SELECT * FROM TMP1 T1 WHERE T1.INDEKS = I.INDEKS AND T1.IDPREDMETA = I.IDPREDMETA);
+        checkSQL("DELCARE");
+        
+        EXEC SQL OPEN cUspenoMakarIzTreceg;
+        checkSQL("OPEN");
+
+        
+        while(1)
+        {
+            EXEC SQL 
+                FETCH       cUspenoMakarIzTreceg
+                INTO        :hIndeks,
+                            :hIdPredmeta
+                            ;
+            checkSQL("fetch");
+            
+            if(SQLCODE == 100)
+                break;
+            
+            EXEC SQL 
+                DELETE FROM DA.ISPIT
+                WHERE   CURRENT OF cUspenoMakarIzTreceg;
+            checkSQL("DELETE");
+            
+            printf("Uspesno je obrisano polaganje za studenta %d i predmet %d!\n", hIndeks, hIdPredmeta
+            );
+            
+            
+            
+        }
+    
+        EXEC SQL CLOSE cUspenoMakarIzTreceg;
+        checkSQL("CLOSE");
+                
+
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
