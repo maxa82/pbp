@@ -1,0 +1,152 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sql.h>
+#include<stdbool.h>
+
+
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+// Maticna promenljiva koja ce cuvati tekstualni oblik dinamicke SQL naredbe
+char hIzraz[255];
+short hIdNivoa;
+sqlint32 hId;
+char hOznaka[11];
+char hNaziv[51];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char * msg)
+{
+    if(SQLCODE < 0)
+    {
+        char buffer[1024];
+        short bufferSize = sizeof(buffer);
+        short lineWidth = 50;
+        
+        fprintf(stderr, "greska! %d %s\n", SQLCODE, msg);
+        
+        sqlaintp(buffer, bufferSize, lineWidth, &sqlca);
+        
+        fprintf(stderr, "%s\n", buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        
+        exit(EXIT_FAILURE);
+     }
+    
+    
+}
+
+
+
+/**
+ * 
+Zadatak 4.3: Napisati C/SQL program u kojem se naredbe izvršavaju dinamički. Izdvojiti naredne podatke o studijskim programima: identifikator, oznaka i naziv, za svaki studijski program čiji se identifikator nivoa unosi sa standardnog ulaza.
+
+
+ * 
+ */
+
+int main(int argc, char ** argv)
+{
+    
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+   
+    sprintf(hIzraz, "SELECT     ID, " 
+                    "           OZNAKA, "
+                    "           TRIM(NAZIV) "
+                    "FROM       DA.STUDIJSKIPROGRAM "
+                    "WHERE      IDNIVOA = CAST(? AS SMALLINT)"
+    );
+    
+    EXEC SQL
+            PREPARE pIzraz
+            FROM    :hIzraz;
+    checkSQL("prepare");
+    
+    EXEC SQL 
+        DECLARE cProgrami CURSOR FOR
+        pIzraz;
+    checkSQL("Declare");
+    
+    printf("unesite IDNIVOA\n");
+    
+    scanf("%hd", &hIdNivoa);
+    
+    
+    EXEC SQL 
+        OPEN    cProgrami
+        USING   :hIdNivoa;
+    checkSQL("OPEN CURSOR");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cProgrami
+            INTO    :hId,
+                    :hOznaka,
+                    :hNaziv;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\n\t-id : %d \n\t-oznaka : %s\n\t-naziv:%s\n\n", hId, hOznaka, hNaziv);
+        
+        
+    }
+    
+    EXEC SQL 
+        CLOSE cProgrami;
+    checkSQL("CLOSE");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT");
+
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    exit(EXIT_SUCCESS);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
