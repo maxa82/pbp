@@ -1,0 +1,137 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sql.h>
+
+
+
+
+EXEC SQL INCLUDE SQLCA;
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIdPrograma;
+sqlint32 hIdPredmeta;
+sqlint32 hIdUslovnogPredmeta;
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "GRESKA! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+    
+}
+
+
+/*
+ 
+Zadatak 2.8: Napisati C/SQL program kojim se dodaje da je za polaganje predmeta čiji je identifikator 2343 uslov da se položi predmet čiji je identifikator 2327, na studijskom programu sa identifikatorom 103.
+
+ */
+
+int main()
+{
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    EXEC SQL    
+        INSERT INTO DA.USLOVNIPREDMET
+        VALUES (103, 2343, 2327);
+    checkSQL("INSERT INTO");
+   
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
