@@ -1,0 +1,190 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hNaziv[151];
+char hDatumPolaganja[11];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.4: Napisati C/SQL program kojim se za sve studente studijskog programa Informatika briše prvi položen ispit (ukoliko ima položenih ispita tog studenta). Za svako obrisano polaganje ispisati: indeks, ime i prezime studenta, datum polaganja i naziv predmeta.
+
+
+*/
+
+
+    EXEC SQL   
+        DECLARE     cPrviIspiti CURSOR FOR
+        WITH TMP AS (
+                    SELECT      I.INDEKS,
+                    MIN(DATPOLAGANJA) AS DATUMPRVOG
+        FROM        DA.ISPIT I JOIN 
+                    DA.DOSIJE D ON I.INDEKS = D.INDEKS JOIN
+                    DA.STUDIJSKIPROGRAM SP ON SP.ID = D.IDPROGRAMA
+        WHERE       SP.NAZIV = 'Informatika' AND OCENA > 5 AND
+                    STATUS = 'o'
+        GROUP BY    I.INDEKS
+        HAVING      MIN(DATPOLAGANJA) IS NOT NULL
+        )
+        SELECT      I.INDEKS,
+                    (SELECT IME FROM DA.DOSIJE D WHERE D.INDEKS = I.INDEKS), 
+                    (SELECT PREZIME FROM DA.DOSIJE WHERE INDEKS = I.INDEKS), 
+                    I.DATPOLAGANJA,
+                    (SELECT NAZIV FROM DA.PREDMET P WHERE P.ID = I.IDPREDMETA) 
+                    FROM        DA.ISPIT I
+                    WHERE       OCENA > 5 AND
+                                STATUS = 'o' AND 
+                                            EXISTS (
+                            SELECT *
+                            FROM    TMP T
+                            WHERE T.INDEKS = I.INDEKS AND T.DATUMPRVOG = I.DATPOLAGANJA
+                    );
+    checkSQL("DECLARE CURSOSR");
+    
+    
+    
+    EXEC SQL OPEN cPrviIspiti;
+    checkSQL("OPEN");
+        
+    int i = 0;
+    while(1)
+    {
+        EXEC SQL 
+                FETCH   cPrviIspiti
+                INTO    :hIndeks,
+                        :hIme,
+                        :hPrezime,
+                        :hDatumPolaganja,
+                        :hNaziv;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        
+        
+        EXEC SQL 
+            DELETE FROM DA.ISPIT
+            WHERE       CURRENT OF cPrviIspiti;
+        checkSQL("DELETE");
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+//         EXEC SQL 
+//                 SELECT      DATPOLAGANJA,
+//                             NAZIV
+//                 INTO        :hDatumPolaganja,
+//                             :hNaziv
+//                 FROM        DA.ISPIT I JOIN DA.PREDMET P ON P.ID = I.IDPREDMETA
+//                 WHERE       INDEKS = :hIndeks AND OCENA > 5 AND STATUS = 'o'
+//                             AND DATPOLAGANJA <= ALL (
+//                                     SELECT I1.DATPOLAGANJA 
+//                                     FROM DA.ISPIT I1
+//                                     WHERE I1.INDEKS = INDEKS AND I1.OCENA > 5 AND I1.STATUS = 'o'
+//                         
+//                     );
+//         checkSQL("SELECT INTO");
+//         
+//         EXEC SQL 
+//             DELETE FROM DA.ISPIT
+//             WHERE INDEKS = :hIndeks AND OCENA > 5 AND STATUS = 'o'
+//                     AND DATPOLAGANJA <= ALL (
+//                         SELECT I1.DATPOLAGANJA 
+//                         FROM DA.ISPIT I1
+//                         WHERE I1.INDEKS = INDEKS AND I1.OCENA > 5 AND I1.STATUS = 'o'
+//                         
+//                     );
+//         checkSQL("DELETE FROM");
+        
+        
+        printf(" (%d) uspesno polaganje je obrisano! %d %s %s %s %s\n\n", i++, hIndeks, hIme, hPrezime, hDatumPolaganja, hNaziv);
+        
+        
+    }
+    
+   
+     EXEC SQL CLOSE cPrviIspiti;
+    checkSQL("CLOSE");
+
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
