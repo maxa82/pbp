@@ -1,0 +1,158 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+short hOcena;
+sqlint32 hIndeks;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.9: Napisati C/SQL program koji se za sve studente smera Informatika ažurira u tabeli ISPIT prvi položen ispit (ukoliko ima položenih ispita za tog studenta) tako što povećava ocenu za 1 (ukoliko je ocena bila 5 ili 10 ostavlja je nepromenjenu).
+
+
+
+
+*/
+
+
+    EXEC SQL 
+        DECLARE cStudenti CURSOR FOR 
+        SELECT  INDEKS
+        FROM DA.DOSIJE D JOIN DA.STUDIJSKIPROGRAM SP ON SP.ID = D.IDPROGRAMA
+        WHERE SP.NAZIV = 'Informatika';
+    checkSQL("DECLARE 1");
+    
+    EXEC SQL 
+        DECLARE cPrviPolozen    CURSOR FOR
+        SELECT  OCENA
+        FROM    DA.ISPIT I
+        WHERE  OCENA > 5 AND STATUS = 'o' AND INDEKS = :hIndeks AND NOT EXISTS (SELECT * FROM DA.ISPIT I1 WHERE
+            I1.OCENA > 5 AND I1.STATUS = 'o' AND I1.INDEKS = I.INDEKS AND 
+            I1.DATPOLAGANJA < I.DATPOLAGANJA
+        )
+        FOR     UPDATE OF OCENA;
+    checkSQL("DECLARE 2");
+    
+    EXEC SQL OPEN cStudenti;
+    checkSQL("OPEN 1");
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cStudenti
+            INTO    :hIndeks;
+        checkSQL("FETCH 1");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("Broj indeksa studenta sa smera 'Informatika' %d\n", hIndeks);
+        
+        EXEC SQL OPEN cPrviPolozen;
+        checkSQL("OPEN 2");
+        
+        while(1)
+        {
+            EXEC SQL 
+                FETCH   cPrviPolozen
+                INTO    :hOcena;
+        checkSQL("FETCH 2");
+        
+        
+        if(SQLCODE == 100)
+            break;
+        
+        EXEC SQL 
+                UPDATE DA.ISPIT
+                SET OCENA = (CASE
+                                WHEN OCENA < 10 THEN OCENA + 1
+                                ELSE OCENA
+                            END
+                )
+                WHERE   CURRENT OF cPrviPolozen;
+        checkSQL("UPDATE");
+        
+            
+        }
+        
+        
+        
+        EXEC SQL CLOSE cPrviPolozen;
+        checkSQL("CLOSE 2");
+    }
+    
+    
+    
+    EXEC SQL CLOSE cStudenti;
+    checkSQL("CLOSE 1");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
