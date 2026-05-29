@@ -1,0 +1,234 @@
+
+
+
+
+/*
+1. zadatak
+Napisati C/SQL aplikaciju koja izdvaja studente koji su pali ispit iz odredenenog predmeta i nudi mogu´cnost da urade
+projekat iz tog predmeta, kako bi na taj naˇcin poloˇzili ispit. Opis rada aplikacije je u nastavku.
+• Na poˇcetku rada, aplikacija oˇcekuje od korisnika da unese identifikator predmeta. Na osnovu unetog identifikatora,
+na standardni izlaz se ispisuje naziv predmeta o kojem je reˇc.
+• Zatim, aplikacija izdvaja iz baze podataka sve studente koji su bar jednom izaˇsli na ispit iz ovog predmeta, ali ga
+nikada nisu poloˇzili. Izdvaja se indeks studenta, kao i njegov najbolji uˇcinak. Najbolji uˇcinak predstavlja najve´ci
+broj poena koji je taj student ikada ostvario na ovom ispitu. Na primer, ako je student polagao ispit 3 puta i osvojio,
+redom, 46, 49 i 42 poena, onda ´ce najbolji uˇcinak biti 49 poena (i u tom sluˇcaju studenta treba prikazati samo
+jednom, sa tih 49 poena).
+• Izveˇstaj je potrebno urediti po indeksu studenta, rastu´ce. Takode, aplikacija izdvaja najviˇse 3 studenta.
+• Za svakog studenta treba prikazati (ispisom na standardni izlaz) njegov indeks i najbolji uˇcinak. Nakon prikaza,
+od korisnika se traˇzi da unese naziv projekta (pretpostaviti da ´ce korisnik uneti jednu nisku bez belina), a onda se
+u tabelu DA.PROJEKAT unose odgovaraju´ce informacije. Maksimalan broj poena koje projekat nosi treba postaviti
+na 61 − x, gde je x studentov najbolji uˇcinak. Kako se projekat tek formira, broj poena koji je student ostvario i
+status projekta (da li je student poloˇzio ili nije) su nepoznati u ovom trenutku i ne treba ih unositi. Posle unosa, na
+standardni izlaz ispisati poruku o uspehu, uz informaciju o tome koliko ´ce projekat nositi poena (o formatu ispisa i
+interakcije korisnika sa aplikacijom, pogledati primer izvrˇsavanja, naveden nakon zahteva zadatka).
+• Obrada jednog studenta treba da predstavlja jednu transakciju.
+• Pri programiranju aplikacije nije potrebno voditi raˇcuna da ona funkcioniˇse u viˇsekorisniˇckom okruˇzenju.
+Primer interakcije korisnika sa programom je dat u nastavku
+
+*/
+
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<stdbool.h>
+#include<sql.h>
+#include<string.h>
+
+
+EXEC SQL INCLUDE SQLCA;
+
+
+
+// sekcija deklarisanja
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIdPredmeta;
+sqlint32 hIndeks;
+sqlint32 hPoeni;
+
+char hNazivProjekta[101];
+
+char hNazivPredmeta[151];
+
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char buffer[1024];
+        short bufferSize = sizeof(buffer);
+        short lineWidth = 50;
+        
+        
+        sqlaintp(buffer, bufferSize, lineWidth, &sqlca);
+        
+        fprintf(stderr, "greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", buffer);
+        
+        
+        EXEC SQL ROLLBACK;
+        EXEC SQL CONNECT RESET;
+        
+        exit(EXIT_FAILURE);
+        
+        
+    }
+    
+    
+}
+
+
+
+int main(int argc, char** argv)
+{
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    printf("unesite identifikator predmeta:\n");
+    scanf("%d", &hIdPredmeta);
+    getchar();
+    
+    
+    
+    EXEC SQL
+        SELECT      NAZIV
+        INTO        :hNazivPredmeta
+        FROM        DA.PREDMET 
+        WHERE       ID = :hIdPredmeta;
+    checkSQL("SELECT INTO");
+    
+    
+    printf("Naziv predmeta je %s\n", hNazivPredmeta);
+    
+    
+    EXEC SQL 
+            DECLARE     cStudenti   CURSOR WITH HOLD FOR 
+            WITH TAB1 AS (
+                SELECT MAX(I.POENI) AS BOD, I.INDEKS
+                FROM DA.ISPIT I 
+                WHERE I.POENI IS NOT NULL AND I.IDPREDMETA = :hIdPredmeta
+                GROUP BY I.IDPREDMETA, I.INDEKS
+                
+             )
+            SELECT      D.INDEKS,
+                         (SELECT  TAB1.BOD FROM TAB1 WHERE TAB1.INDEKS = D.INDEKS) AS NAJBOLJI_UCINAK
+            FROM        DA.DOSIJE D
+            WHERE       EXISTS (SELECT * FROM DA.ISPIT I1 WHERE I1.INDEKS = D.INDEKS AND I1.IDPREDMETA = :hIdPredmeta AND I1.STATUS <> 'n') AND NOT EXISTS (SELECT * FROM DA.ISPIT I2 WHERE I2.INDEKS = D.INDEKS AND I2.IDPREDMETA = :hIdPredmeta AND I2.STATUS = 'o' AND I2.OCENA > 5)
+            ORDER BY    1 ASC
+            LIMIT 3;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cStudenti;
+    checkSQL("OPEN");
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH       cStudenti
+            INTO        :hIndeks,
+                        :hPoeni;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("Indeks: %d, poeni na ispitu: %d\n", hIndeks, hPoeni);
+        printf("Uneti naziv projekta: ");
+        
+        scanf("%s", hNazivProjekta);
+        getchar();
+        
+        EXEC SQL 
+                INSERT INTO DA.PROJEKAT 
+                VALUES (:hIndeks, :hIdPredmeta, :hNazivProjekta, 61 - :hPoeni, NULL, NULL);
+        checkSQL("INSERT INTO");
+        
+        printf("Projekat uspesno unesen. Projekat ce vredeti poena: %d\n\n", 61 - hPoeni);
+        
+        EXEC SQL COMMIT;
+        checkSQL("COMMIT");
+        
+        
+    }
+    
+    EXEC SQL CLOSE cStudenti;
+    checkSQL("CLOSE");
+    
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRED KRAJ");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    exit(EXIT_SUCCESS);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
