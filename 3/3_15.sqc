@@ -1,0 +1,175 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hDatPolaganja[11];
+short h1Ocena;
+short hOcena;
+short hGodinaUpisa;
+char hNaziv[151];
+double hProsecna;
+short hN;
+sqlint32 hIdPredmeta;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    
+/*
+Zadatak 3.15: Napisati C/SQL program kojim se, za svakog studenta koji se upisao u godini koja se učitava sa standardnog ulaza, ispisuju podaci o imenu, prezimenu i prosečnoj oceni, a zatim se ispisuju informacije o položenim ispitima i to: naziv predmeta, ocena i datum polaganja.
+
+
+*/
+    
+    
+
+    printf("unesite godinu upisa\n");
+    scanf("%hd", &hGodinaUpisa);
+    
+    EXEC SQL 
+        DECLARE     cStudenti   CURSOR FOR
+        SELECT      D.INDEKS,
+                    IME,
+                    PREZIME,
+                    AVG(OCENA + 0.0) AS PROSECNA 
+        FROM        DA.ISPIT I JOIN DA.DOSIJE D ON D.INDEKS = I.INDEKS
+        WHERE       I.OCENA > 5 AND I.STATUS = 'o' AND YEAR(D.DATUPISA) = :hGodinaUpisa
+        GROUP BY    D.INDEKS, IME, PREZIME;
+    checkSQL("DECLARE");
+    
+    EXEC SQL
+        DECLARE     cIspiti CURSOR FOR
+        SELECT      NAZIV,
+                    DATPOLAGANJA,
+                    OCENA
+        FROM        DA.ISPIT I JOIN DA.PREDMET P ON P.ID = I.IDPREDMETA 
+        WHERE       I.OCENA > 5 AND I.STATUS = 'o'  AND I.INDEKS = :hIndeks;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cStudenti;
+    checkSQL("OPEN");
+    
+    while(1)
+    {
+            EXEC SQL 
+                FETCH   cStudenti
+                INTO    :hIndeks,
+                        :hIme,
+                        :hPrezime,
+                        :hProsecna;
+            checkSQL("FETCH");
+            
+            
+            if(SQLCODE == 100)
+                break;
+            
+            printf("\n\n***** Uspesna polaganja studenta %d %s %s sa prosecnom ocenom %lf su:\n\n", hIndeks, hIme, hPrezime, hProsecna);
+            
+            EXEC SQL OPEN cIspiti;
+            checkSQL("OPEN");
+            
+            
+            while(1)
+            {
+                
+                EXEC SQL 
+                FETCH   cIspiti
+                INTO    :hNaziv,
+                        :hDatPolaganja,
+                        :hOcena;
+                checkSQL("FETCH");
+            
+            
+            if(SQLCODE == 100)
+                break;
+            
+            printf("- %s %s %hd\n", hNaziv, hDatPolaganja, hOcena);
+                
+                
+            }
+            
+            
+            EXEC SQL CLOSE cIspiti;
+            checkSQL("CLOSE");
+            
+        
+        
+    }
+    
+    
+   
+    EXEC SQL CLOSE cStudenti;
+    checkSQL("CLOSE");
+
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
