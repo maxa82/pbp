@@ -1,0 +1,117 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIdPredmeta;
+sqlint32 hIdPrograma;
+short hSemestar;
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
+/*
+Zadatak 5.11:
+
+Napisati C/SQL program koji za svaki predmet koji je obavezan na smeru čiji je identifikator 101 pronalazi i ispisuje uslovne predmete, a zatim pita korisnika da li želi da poveća ukloni uslovnosti za tekući predmet. Ukoliko je odgovor korisnika ‘da’, aplikacija izvršava brisanje i prikazuje korisniku poruku. Obrada jednog predmeta treba da predstavlja jednu transakciju.
+
+
+ */
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    
+   
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
