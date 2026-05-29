@@ -1,0 +1,284 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIndeks;
+short hGodina;
+short hOdabrana_godina;
+char hNazivPredmeta[151];
+short hOcena;
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
+/*
+Zadatak 5.7:
+
+Napisati C/SQL program kojim se omogućuje da radnik u studentskoj službi poništava studentske ispite. Obrada jednog studenta u jednoj godini roka, koja je opisana u nastavku, mora da predstavlja zasebnu transakciju. Transakcija se sastoji od narednih koraka:
+
+- Aplikacija zahteva od korisnika da unese indeks studenta.
+
+- Aplikacija na osnovu unetog indeksa ispisuje godine rokova u kojima student ima neke položene ispite, ali samo ukoliko već nije prethodno ta godina roka obrađena za tog studenta (ova informacija se čuva u tabeli OBRADJENAPOLAGANJA).
+
+- Korisnik bira jednu od ispisanih godina.
+
+- Aplikacija pronalazi sve položene ispite za datog studenta u odabranoj godini studija. Za svaki ispit, aplikacija ispisuje naziv položenog predmeta i ocenu koju je student ostvario. Takođe, aplikacija pita korisnika da li želi da poništi tekući ispit čije su informacije ispisane. Ukoliko korisnik odgovori potvrdno, aplikacija poništava tekući ispit. U svakom slučaju, aplikacija prelazi na naredni ispit sve do ispisivanja svih ispita.
+
+- Kada se svi ispiti obrade, aplikacija pita korisnika da potvrdi sve izmene u tekućoj transakciji. Ukoliko korisnik odgovori odrično, onda je potrebno poništiti sve izmene koje se tiču poništavanja ispita iz koraka 4. Međutim, potrebno je omogućiti da, u svakom slučaju, tekuća godina roka za dati indeks bude obrađena (tj. trajno zapamćena u tabeli OBRADJENAPOLAGANJA).
+
+
+Na kraju svake transakcije, aplikacija pita korisnika da li želi da završi sa radom. Ukoliko korisnik odgovori potvrdno, aplikacija se završava. U suprotnom, započinje se nova transakcija sa prethodno opisanim koracima.
+
+
+ */
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+   
+    
+    EXEC SQL 
+        DECLARE     cGodine CURSOR WITH HOLD FOR
+        SELECT DISTINCT I.SKGODINA
+        FROM            DA.ISPIT I
+        WHERE           I.INDEKS = :hIndeks AND I.OCENA > 5 AND I.STATUS = 'o' AND 
+                        NOT EXISTS (SELECT * FROM DA.OBRADJENAPOLAGANJA OP WHERE OP.GODINA = I.SKGODINA AND OP.INDEKS = I.INDEKS);
+    checkSQL("DECLARE CURSOR");
+    
+    EXEC SQL 
+        DECLARE     cIspiti CURSOR WITH HOLD FOR
+        SELECT          (SELECT NAZIV FROM DA.PREDMET WHERE ID = I.IDPREDMETA),
+                        I.OCENA
+        FROM            DA.ISPIT I
+        WHERE           I.INDEKS = :hIndeks AND I.OCENA > 5 AND I.STATUS = 'o' AND 
+                        I.SKGODINA = :hOdabrana_godina;
+    checkSQL("DECLARE CURSOR 1");
+    
+    
+    short Godine[10];
+    
+    int redni_broj = 0;
+    
+    int brojac = 0;
+    
+    for(int i = 0; i < 10; i++)
+        Godine[i] = -1;
+    
+    while(1)
+    {
+         printf("unesite indeks studenta:\n");
+            scanf("%d", &hIndeks);
+            getchar(); // novi red
+        
+        EXEC SQL OPEN cGodine;
+        checkSQL("OPEN");
+            
+        while(1)
+        {
+            EXEC SQL
+                FETCH       cGodine
+                INTO        :hGodina;
+            checkSQL("FETCH INTO");
+            
+            if(SQLCODE == 100)
+                break;
+            
+            printf("\t %d) %hd\n", brojac + 1, hGodina);
+            
+            Godine[brojac] = hGodina;
+            
+            brojac++;
+        }
+        
+        EXEC SQL CLOSE cGodine;
+        checkSQL("CLOSE");
+        
+        if(brojac == 0)
+        {
+            printf("Kursor je prazan! Ide se na sledeceg studenta . . .\n");
+            continue;
+        }
+        
+        printf("Izaberite jednu od ispisanih godina [1 - %d]: \n", brojac);
+        
+            brojac = 0;
+        
+            scanf("%d", &redni_broj);
+            getchar(); // novi red
+        
+            hOdabrana_godina = Godine[redni_broj - 1];
+            
+            for(int i = 0; i < 10; i++)
+                Godine[i] = -1;
+                
+        
+                
+            EXEC SQL 
+                    INSERT INTO DA.OBRADJENAPOLAGANJA
+                    VALUES (:hIndeks, :hOdabrana_godina);
+            checkSQL("INSERT INTO");
+            
+            
+            EXEC SQL SAVEPOINT tacka1 ON ROLLBACK RETAIN CURSORS;
+            checkSQL("SAVEPOINT");
+            
+            EXEC SQL OPEN cIspiti;
+            checkSQL("OPEN 1");
+            
+            while(1)
+            {
+                    EXEC SQL 
+                        FETCH   cIspiti
+                        INTO    :hNazivPredmeta,
+                                :hOcena;
+                    checkSQL("FETCH INTO");
+                    
+                    if(SQLCODE == 100)
+                        break;
+                    
+                    printf("\t - %s %hd\n", hNazivPredmeta, hOcena);
+                    
+                    //da li želi da poništi tekući ispit čije su informacije ispisane.
+                    printf("da li želite da poništite tekući ispit čije su informacije ispisane? [d/n]\n");
+                    
+                    char odg = getchar(); getchar();
+                    
+                    if(odg == 'd')
+                    {
+                        EXEC SQL 
+                            DELETE FROM DA.ISPIT
+                            WHERE   CURRENT OF cIspiti;
+                        checkSQL("DELETE FROM");
+                        
+                        printf("brisanje je uspesno izvrseno!\n");
+                        
+                    }
+                    
+                    
+            }
+            
+            EXEC SQL CLOSE cIspiti;
+            checkSQL("CLOSE 1");
+            
+            printf("da li potvrdjujete sve izmene u tekucoj transakciji? [d/n]\n");
+            
+            char odg = getchar(); getchar();
+            
+            if(odg == 'n')
+            {
+                        EXEC SQL ROLLBACK TO SAVEPOINT tacka1;
+                        checkSQL("ROLLBACK");
+            }
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+            printf("da li zelite da zavesite sa radom? [d/n]\n");
+            
+            odg = getchar(); getchar();
+            
+            if(odg == 'd')
+               break;
+            
+            
+        }  
+          
+    
+    
+    
+    
+
+
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
