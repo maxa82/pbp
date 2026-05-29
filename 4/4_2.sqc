@@ -1,0 +1,139 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sql.h>
+#include<stdbool.h>
+
+
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+// Maticna promenljiva koja ce cuvati tekstualni oblik dinamicke SQL naredbe
+char hIzraz[255];
+short hGodinaRoka;
+char hOznakaRoka[21];
+char hNaziv[31];
+char hDatPocetka[11];
+char hDatKraja[11];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char * msg)
+{
+    if(SQLCODE < 0)
+    {
+        char buffer[1024];
+        short bufferSize = sizeof(buffer);
+        short lineWidth = 50;
+        
+        fprintf(stderr, "greska! %d %s\n", SQLCODE, msg);
+        
+        sqlaintp(buffer, bufferSize, lineWidth, &sqlca);
+        
+        fprintf(stderr, "%s\n", buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        
+        exit(EXIT_FAILURE);
+     }
+    
+    
+}
+
+
+
+/**
+ * 
+Zadatak 4.2: Napisati C/SQL program u kojem se naredbe izvršavaju dinamički kojim se omogućava da korisnik unese podatke o novom ispitnom roku. Uneti novi ispitni rok u bazu podataka sa unetim podacima. Obratiti pažnju da se naziv roka može sadržati od više reči.
+
+
+ * 
+ */
+
+int main(int argc, char ** argv)
+{
+    
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+   
+    
+    sprintf(hIzraz, "INSERT INTO DA.ISPITNIROK VALUES(?, ?, ?, ?, ?)");
+    
+    
+    EXEC SQL 
+        PREPARE pIzraz
+        FROM    :hIzraz;
+    checkSQL("PREPARE PIZRAZ");
+    
+    scanf("%hd", &hGodinaRoka); //, hOznakaRoka);
+    scanf("%s", hOznakaRoka);
+    getchar();
+    
+    // zbog fgets() citanje novog reda
+    
+    fgets(hNaziv, sizeof(hNaziv), stdin);
+    hNaziv[strcspn(hNaziv, "\n")] = '\0';
+    
+    scanf("%s", hDatPocetka);
+    
+    scanf("%s", hDatKraja);
+    
+//     printf("%hdA%sA%sA%sA%s\n", hGodinaRoka, hOznakaRoka,hNaziv,hDatKraja, hDatPocetka);
+    
+   // return 0;
+    
+    EXEC SQL 
+        EXECUTE pIzraz 
+        USING   :hGodinaRoka,
+                :hOznakaRoka,
+                :hNaziv,
+                :hDatPocetka,
+                :hDatKraja;
+    checkSQL("EXECUTE");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT");
+
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    exit(EXIT_SUCCESS);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
