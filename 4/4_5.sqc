@@ -1,0 +1,212 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sql.h>
+#include<stdbool.h>
+
+
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+// Maticna promenljiva koja ce cuvati tekstualni oblik dinamicke SQL naredbe
+char hIzraz[370];
+short hIdNivoa;
+sqlint32 hId;
+char hOznaka[11];
+char hNaziv[151];
+short hGodina;
+double hProsek;
+double hProcenat;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char * msg)
+{
+    if(SQLCODE < 0)
+    {
+        char buffer[1024];
+        short bufferSize = sizeof(buffer);
+        short lineWidth = 50;
+        
+        fprintf(stderr, "greska! %d %s\n", SQLCODE, msg);
+        
+        sqlaintp(buffer, bufferSize, lineWidth, &sqlca);
+        
+        fprintf(stderr, "%s\n", buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        
+        exit(EXIT_FAILURE);
+     }
+    
+    
+}
+
+
+
+/**
+ * 
+Zadatak 4.5: Napisati C/SQL program u kojem se naredbe izvršavaju dinamički. Izdvojiti naziv predmeta, prosečnu ocenu i procenat studenata iz tog predmeta u školskoj godini koja se unosi sa standardnog ulaza.
+
+- Programiranje 1
+	- 7.581197
+	- 40.344828
+
+
+	- Diskretne strukture 1
+	- 6.992063
+	- 37.951807
+
+
+	- Programiranje 2
+	- 7.425926
+	- 27.411168
+
+
+	- Diskretne strukture 2
+	- 7.007463
+	- 32.923833
+
+
+	- Uvod u matematicku logiku
+	- 7.479452
+	- 23.248408
+
+
+	- Programiranje 1
+	- 7.793296
+	- 29.248366
+
+
+	- Programiranje 2
+	- 7.856115
+	- 24.385965
+
+
+	- Izrada doktorske disertacije 1
+	- 7.500000
+	- 100.000000
+
+
+	- Izrada doktorske disertacije 1
+	- 8.714286
+	- 100.000000
+
+
+ *
+ */
+
+int main(int argc, char ** argv)
+{
+    
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    sprintf(hIzraz, "SELECT     P.NAZIV, "
+                    "           AVG(OCENA + 0.0), "
+                    "           ((COUNT(*) + 0.00) /  (SELECT COUNT(*) FROM DA.ISPIT WHERE SKGODINA = I.SKGODINA AND IDPREDMETA = I.IDPREDMETA)) * 100 "
+                    "FROM       DA.ISPIT I JOIN DA.PREDMET P ON P.ID = I.IDPREDMETA "
+                    "WHERE      OCENA > 5 AND STATUS = 'o' AND I.SKGODINA = CAST(? AS SMALLINT)"
+                    "GROUP BY   I.IDPREDMETA, P.NAZIV, I.SKGODINA"
+    );
+    
+    
+    /*
+     
+     SELECT     P.NAZIV, 
+            AVG(OCENA + 0.0), 
+            ((COUNT(*) + 0.00) /  (SELECT COUNT(*) FROM DA.ISPIT WHERE SKGODINA = I.SKGODINA AND IDPREDMETA = I.IDPREDMETA)) * 100 as PROCENAT 
+FROM       DA.ISPIT I JOIN DA.PREDMET P ON P.ID = I.IDPREDMETA 
+WHERE      OCENA > 5 AND STATUS = 'o' AND I.SKGODINA = 2016
+GROUP BY   I.IDPREDMETA, P.NAZIV, I.SKGODINA ;
+     */
+    
+    
+    EXEC SQL 
+        PREPARE     pIzraz 
+        FROM        :hIzraz;
+    checkSQL("PREPARE");
+    
+    
+    EXEC SQL 
+        DECLARE cPredmeti   CURSOR FOR
+        pIzraz;
+    checkSQL("DECLARE");
+    
+    
+    printf("unesite skolsku godinu: \n");
+    scanf("%hd", &hGodina);
+    
+    EXEC SQL 
+        OPEN cPredmeti
+        USING :hGodina;
+    checkSQL("OPEN");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cPredmeti
+            INTO    :hNaziv,
+                    :hProsek,
+                    :hProcenat;
+        checkSQL("FETCH INTO");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\n\t- %s\n\t- %lf\n\t- %lf\n\n", hNaziv, hProsek, hProcenat);
+        
+        
+    }
+    
+    EXEC SQL CLOSE cPredmeti;
+    checkSQL("CLOSE");
+   
+   
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT");
+
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    exit(EXIT_SUCCESS);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
