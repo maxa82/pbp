@@ -1,0 +1,233 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hDatPolaganja[11];
+short h1Ocena;
+short hOcena;
+short hSkGodina;
+char hNaziv[151];
+double hProsecna;
+char hOznaka[21];
+sqlint32 hIdPredmeta;
+sqlint32 hIdUslovnogPredmeta;
+char hNazivUslovnog[151];
+sqlint32 hIdPrograma;
+sqlint32 hBrojUspenih;
+short iDatPolaganja;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    
+/*
+Zadatak 3.18: Napisati C/SQL program koji za svaki ispitni rok ispisuje njegov naziv i broj uspešnih polaganja za svaku ocenu u tom ispitnom roku. Nakon ispisivanja informacija o ispitnom roku, ponuditi korisniku da izbriše informacije o polaganim ispitima u tom roku. Ukoliko korisnik želi da obriše te podatke, prvo izlistati podatke o indeksu, identifikatoru predmeta, godini roka, oznaci roka i datumu polaganja (ako postoji) za svako polaganje koje se briše. Na kraju brisanja polaganja u jednom ispitnom roku, ispisati ukupan broj obrisanih redova.
+*/
+    
+
+    EXEC SQL 
+        DECLARE cIspitniRok CURSOR FOR
+       SELECT              IR.NAZIV,
+                            IR.OZNAKAROKA,
+                            IR.SKGODINA
+        FROM       DA.ISPITNIROK IR ;
+    checkSQL("DECLARE");
+    
+    EXEC SQL 
+        DECLARE cBrojUspenih CURSOR FOR
+       SELECT              I.OCENA,
+                            COUNT(*) AS BROJ_OCENA 
+        FROM       DA.ISPIT I 
+        WHERE       I.SKGODINA = :hSkGodina AND I.OZNAKAROKA = :hOznaka AND I.OCENA > 5 AND
+                    I.STATUS = 'o'
+        GROUP BY    I.SKGODINA, I.OZNAKAROKA, I.OCENA ;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL 
+        DECLARE     cPolaganiIspiti CURSOR FOR
+        SELECT      INDEKS, IDPREDMETA, SKGODINA, OZNAKAROKA, DATPOLAGANJA
+        FROM        DA.ISPIT I
+        WHERE       I.SKGODINA = :hSkGodina AND I.OZNAKAROKA = :hOznaka;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cIspitniRok;
+    checkSQL("OPEN");
+    
+   
+    int brojac = 0;
+    
+    while(1)
+    {
+                EXEC SQL 
+                    FETCH   cIspitniRok
+                    INTO    :hNaziv,
+                            :hOznaka,
+                            :hSkGodina;
+                checkSQL("FETCH");
+                
+                if(SQLCODE == 100)
+                    break;
+                
+                printf("U ispitnom roku %s (%s) broj uspesnih polaganja je slececi:\n", hNaziv, hOznaka);
+                
+                 EXEC SQL OPEN cBrojUspenih;
+                checkSQL("OPEN");
+                
+                while(1)
+                {
+                    EXEC SQL 
+                    FETCH   cBrojUspenih
+                    INTO    :hOcena,
+                            :hBrojUspenih;
+                checkSQL("FETCH");
+                
+                if(SQLCODE == 100)
+                    break;
+                
+                printf("\t - za ocenu %hd broj uspesnih polaganja je %d\n", hOcena, hBrojUspenih);
+                
+                }
+                
+                 EXEC SQL CLOSE cBrojUspenih;
+                checkSQL("CLOSE");
+                
+                printf("Da li zelite da brisete polaganja za dati rok? [d/n] ili p za prekid\n");
+                
+                char odg = getchar(); getchar();
+                
+                if(odg == 'd')
+                {
+                    
+                    EXEC SQL OPEN cPolaganiIspiti;
+                    checkSQL("OPEN");
+                    
+                    while(1)
+                    {    
+                    
+                    
+                    EXEC SQL 
+                        FETCH   cPolaganiIspiti 
+                        INTO    :hIndeks, :hIdPredmeta, :hSkGodina, :hOznaka, :hDatPolaganja :iDatPolaganja;
+                    checkSQL("FETCH");
+                    
+                    if(SQLCODE == 100)
+                        break;
+                    
+                    printf("Da li zelite da obrisete podatke o ovom polaganju\n %d %d %hd %s %s ? [d/n] ili p za prekid\n",
+                        hIndeks, hIdPredmeta, hSkGodina, hOznaka, iDatPolaganja < 0 ? "NULL" : hDatPolaganja
+                    );
+                    
+                    char odg1 = getchar(); getchar();
+                    
+                    
+                    
+                    if(odg1 == 'd')
+                    {
+                            EXEC SQL
+                                DELETE FROM DA.ISPIT
+                                WHERE   CURRENT OF cPolaganiIspiti;
+                            checkSQL("DELETE");
+                            
+                            printf("upseno obrisan red!\n");
+                            brojac++;
+                    }else if(odg1 == 'p')
+                    {
+                        break;
+                    }
+                    
+                    
+                    
+                    
+                }
+                EXEC SQL CLOSE cPolaganiIspiti;
+                    checkSQL("CLOSE");
+                
+                printf("Obrisano je %d polaganja za dati rok!\n", brojac);
+                brojac = 0;
+                
+                }else if(odg == 'p')
+                    {
+                        break;
+                    }
+                
+                            
+    
+    }
+
+    
+    EXEC SQL CLOSE cIspitniRok;
+    checkSQL("CLOSE");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
