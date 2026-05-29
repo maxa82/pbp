@@ -1,0 +1,137 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sql.h>
+
+
+
+
+EXEC SQL INCLUDE SQLCA;
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIdPredmeta;
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "GRESKA! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+    
+}
+
+
+/*
+ 
+Zadatak 2.13: Napisati C/SQL program kojim se ukida uslovnost svih predmeta koji su uslovni da bi se položio predmet ?iji se identifikator unosi sa standardnog ulaza.
+ */
+
+int main()
+{
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+   
+    printf("unesite id predmeta cije uslovnosti zelite da obrisete:\n");
+    scanf("%d", &hIdPredmeta);
+    
+    EXEC SQL 
+        DELETE FROM DA.USLOVNIPREDMET
+        WHERE   IDPREDMETA = :hIdPredmeta;
+    checkSQL("DELETE");
+    
+   
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
