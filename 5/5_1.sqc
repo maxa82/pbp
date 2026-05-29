@@ -1,0 +1,206 @@
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<stdbool.h>
+#include<sql.h>
+#include<string.h>
+
+
+EXEC SQL INCLUDE SQLCA;
+
+
+
+// sekcija deklarisanja
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIndeks;
+
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char buffer[1024];
+        short bufferSize = sizeof(buffer);
+        short lineWidth = 50;
+        
+        
+        sqlaintp(buffer, bufferSize, lineWidth, &sqlca);
+        
+        fprintf(stderr, "greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", buffer);
+        
+        
+        EXEC SQL ROLLBACK;
+        EXEC SQL CONNECT RESET;
+        
+        exit(EXIT_FAILURE);
+        
+        
+    }
+    
+    
+}
+
+
+
+int main(int argc, char** argv)
+{
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    
+    /*
+     
+     Zadatak 5.1: Napisati C/SQL program koji redom:
+
+- Pronalazi i ispisuje najveći indeks iz tabele ISPIT.
+
+- Briše studenta sa pronađenim indeksom iz tabele ISPIT i ispisuje poruku korisniku o uspešnosti brisanja.
+
+- Ponovo pronalazi i ispisuje najveći indeks iz tabele ISPIT.
+
+- Pita korisnika da li želi da potvrdi ili poništi izmene. U zavisnosti od korisnikovog odgovora, aplikacija potvrđuje ili poništava izmene uz ispisivanje poruke korisniku.
+
+- Ponovo pronalazi i ispisuje najveći indeks iz tabele ISPIT.
+
+     
+     */
+    
+    EXEC SQL 
+        SELECT      MAX(INDEKS)
+        INTO        :hIndeks
+        FROM        DA.ISPIT;
+    checkSQL("SELECT INTO");
+    
+    // Ako nema studenata u tabeli ISPIT, zavrsi program
+    if(SQLCODE == 100) {
+        printf("Tabela je prazna!\n");
+        
+        EXEC SQL CONNECT RESET;
+        checkSQL("Connect reset - SQLCODE 100 - 1");
+        
+        return 0;
+    }
+    
+    printf("1) max(indeks) : %d\n", hIndeks);
+    
+    
+    EXEC SQL 
+        DELETE FROM DA.ISPIT
+        WHERE INDEKS = :hIndeks;
+    checkSQL("DELETE FROM");
+    
+    printf("Uspesno je obrisan student sa indeksom %d!\n", hIndeks);
+    
+    
+    EXEC SQL 
+        SELECT      MAX(INDEKS)
+        INTO        :hIndeks
+        FROM        DA.ISPIT;
+    checkSQL("SELECT INTO");
+    
+    printf("2) max(indeks) : %d\n", hIndeks);
+    
+    printf("da li zelite da potvrdite ili ponistite izmene? [d/n]\n");
+    
+    char odg = getchar(); getchar();
+    
+    
+    if(odg == 'd')
+    {
+        EXEC SQL COMMIT;
+    checkSQL("COMMIT");
+    
+    printf("Izmene su potvrdjene!\n");
+        
+        
+    }else{
+        EXEC SQL ROLLBACK;
+        checkSQL("ROLLBACK");
+        
+         printf("Izmene su ponistene!\n");
+    }
+    
+    EXEC SQL 
+        SELECT      MAX(INDEKS)
+        INTO        :hIndeks
+        FROM        DA.ISPIT;
+    checkSQL("SELECT INTO");
+    
+    printf("3) max(indeks) : %d\n", hIndeks);
+    
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRED KRAJ");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    exit(EXIT_SUCCESS);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
