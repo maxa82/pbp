@@ -1,0 +1,146 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.6: Napisati C/SQL program kojim se za svaki smer pronalazi student koji ima najviše položenih ESPB bodova. Zatim u tabeli ISPIT u napomeni koja se odnosi na poslednji položeni ispit tog studenta zapisuje 'Ovo je student koji ima najvise polozenih kredita na svom smeru'.
+*/
+    EXEC SQL 
+        DECLARE cStudent CURSOR FOR
+        SELECT    I.INDEKS,
+                   (SELECT IME FROM DA.DOSIJE WHERE INDEKS = I.INDEKS),
+                   (SELECT PREZIME FROM DA.DOSIJE WHERE INDEKS = I.INDEKS)
+        FROM      DA.ISPIT I JOIN DA.PREDMET P ON P.ID = I.IDPREDMETA JOIN DA.DOSIJE D ON D.INDEKS = I.INDEKS
+        WHERE      I.OCENA > 5 AND I.STATUS = 'o' 
+        GROUP BY    I.INDEKS, D.IDPROGRAMA
+        HAVING     SUM(P.ESPB) >= ALL (SELECT SUM(P1.ESPB)
+                                        FROM      DA.ISPIT I1 JOIN DA.PREDMET P1 ON P1.ID = I1.IDPREDMETA
+                                        JOIN DA.DOSIJE D1 ON D1.INDEKS =  I1.INDEKS
+                                        WHERE      I1.OCENA > 5 AND I1.STATUS = 'o' AND D1.IDPROGRAMA = D.IDPROGRAMA
+                                        GROUP BY    I1.INDEKS);
+    checkSQL("DECLARE");
+    
+    
+//     EXEC SQL  
+//         DECLARE     cPoslednjiPolozeni CURSOR FOR
+//         SELECT      INDEKS
+//         FROM        DA.ISPIT I
+//         WHERE       I.INDEKS = :hIndeks AND I.OCENA > 5 AND I.STATUS = 'o' AND
+//                     I.DATPOLAGANJA >= ALL (
+//                         SELECT I1.DATPOLAGANJA
+//                         FROM DA.ISPIT I1
+//                         WHERE   I1.OCENA > 5 AND I1.STATUS = 'o' AND I1.INDEKS = I.INDEKS
+//                     )
+//         FOR     UPDATE OF NAPOMENA;
+//     checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cStudent;
+    checkSQL("OPEN");
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH       cStudent
+            INTO        :hIndeks,
+                        :hIme,
+                        :hPrezime;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("Indeks %d ime %s prezime %s\n", hIndeks, hIme, hPrezime);
+        
+        EXEC SQL 
+                UPDATE DA.ISPIT I
+                SET NAPOMENA = 'ovo je neka napomena'
+                WHERE INDEKS = :hIndeks AND I.OCENA > 5 AND I.STATUS = 'o' AND NOT EXISTS (
+                    SELECT *
+                    FROM DA.ISPIT I1
+                    WHERE I1.INDEKS = I.INDEKS AND I1.OCENA > 5 AND I1.STATUS = 'o' AND 
+                    I1.DATPOLAGANJA > I.DATPOLAGANJA
+                );
+        checkSQL("UPDATE");
+        
+    }
+    
+    
+    EXEC SQL CLOSE cStudent;
+    checkSQL("CLOSE");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
