@@ -1,0 +1,188 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hDatPolaganja[11];
+short h1Ocena;
+short hOcena;
+short hGodinaUpisa;
+char hNaziv[151];
+double hProsecna;
+char hOznaka[21];
+sqlint32 hIdPredmeta;
+sqlint32 hIdUslovnogPredmeta;
+char hNazivUslovnog[151];
+sqlint32 hIdPrograma;
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+    
+/*
+Zadatak 3.16: Napisati C/SQL program koji nudi mogućnost ukidanja uslova polaganja za predmete. Program prvo zahteva od korisnika da unese naziv predmeta. Program pronalazi sve predmete sa datim nazivom (može ih biti više) i ispisuje njihove identifikatore, nazive i oznake. Za svaki takav predmet P, program ispisuje identifikatore i nazive njegovih uslovnih predmeta U. Za svaki uslovni predmet U predmeta P, program pita korisnika da li želi da ukine uslovnost P->U. Ukoliko korisnik potvrdi, ukinuti uslov i ispisati poruku.
+*/
+    
+
+printf("Unesite naziv predmeta P:\n");
+fgets(hNaziv, sizeof(hNaziv), stdin);
+hNaziv[strcspn(hNaziv, "\n")] = '\0';
+
+    EXEC SQL 
+        DECLARE cPredmeti CURSOR FOR
+        SELECT  ID,
+                NAZIV,
+                OZNAKA
+        FROM    DA.PREDMET P
+        WHERE   P.NAZIV = :hNaziv;
+    checkSQL("DECLARE");
+
+    EXEC SQL 
+        DECLARE cUslovniPredmeti    CURSOR FOR
+        SELECT  IDUSLOVNOGPREDMETA,
+                (SELECT P.NAZIV FROM DA.PREDMET P WHERE P.ID = UP.IDUSLOVNOGPREDMETA),
+                IDPROgrama
+        FROM    DA.USLOVNIPREDMET UP
+        WHERE   UP.IDPREDMETA = :hIdPredmeta;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cPredmeti;
+    checkSQL("OPEN");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cPredmeti
+            INTO    :hIdPredmeta,
+                    :hNaziv,
+                    :hOznaka;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\n*** Predmet [P] je : %d %s %s ***\n", hIdPredmeta, hNaziv, hOznaka);
+        
+        EXEC SQL OPEN cUslovniPredmeti;
+        checkSQL("OPEN");
+    
+        
+         while(1)
+    {
+        EXEC SQL 
+            FETCH   cUslovniPredmeti
+            INTO    :hIdUslovnogPredmeta,
+                    :hNazivUslovnog,
+                    :hIdPrograma;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("\t - uslovni predmet [U] : %d %s\n", hIdUslovnogPredmeta, hNazivUslovnog);
+        
+        printf("Da li zelite da ukinete uslovnost na programu %d, tj. da %s (%d) vise NE uslovljava %s (%d)? [d/n]\n", hIdPrograma ,hNazivUslovnog, hIdUslovnogPredmeta, hNaziv, hIdPredmeta);
+        
+        char odg = getchar(); getchar();
+        
+        if(odg == 'd'){
+            
+            EXEC SQL 
+                DELETE FROM DA.USLOVNIPREDMET
+                WHERE CURRENT OF cUslovniPredmeti;
+            checkSQL("DELETE");
+        
+            printf("Uslovnost je uspesno uklonjena!\n");
+        
+            
+        }else{
+            printf("Uslovljenost i dalje vazi!\n");
+        }
+        
+        
+        
+    }
+        
+        
+        EXEC SQL CLOSE cUslovniPredmeti;
+        checkSQL("CLOSE");
+        
+    }
+    
+    
+     EXEC SQL CLOSE cPredmeti;
+    checkSQL("CLOSE");
+
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
