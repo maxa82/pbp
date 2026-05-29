@@ -1,0 +1,159 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hIndeks;
+sqlint32 hId;
+char hNaziv[51];
+char hIme[51];
+char hPrezime[51];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.5: Napisati C/SQL program kojim se formira izveštaj o studentima koji su padali neki ispit koji sadrži sledeće informacije: ime, prezime i broj indeksa. Za svaki studijski program formirati posebnu sekciju izveštaja sa zaglavljem koje sadrži identifikator i naziv studijskog programa. Izveštaj urediti po nazivu studijskog programa rastuće, a sadržaj svake sekcije urediti po broju indeksa rastuće.
+
+
+
+
+*/
+
+    EXEC SQL 
+            DECLARE cStudProg CURSOR FOR 
+            SELECT  ID,
+                    NAZIV
+            FROM    DA.STUDIJSKIPROGRAM
+            ORDER BY 2 ASC;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL 
+            DECLARE cStudenti CURSOR FOR 
+            SELECT  INDEKS,
+                    IME,
+                    PREZIME
+            FROM    DA.DOSIJE D
+            WHERE   D.IDPROGRAMA = :hId AND EXISTS (SELECT * FROM DA.ISPIT I WHERE OCENA = 5 AND STATUS = 'o' AND INDEKS = D.INDEKS )
+            ORDER BY 1 ASC
+            limit 10;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cStudProg;
+    checkSQL("OPEN");
+    
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH       cStudProg
+            INTO        :hId,
+                        :hNaziv;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        
+        printf("/*******************************/\n");
+        printf("%d %s\n", hId, hNaziv);
+        printf("/*******************************/\n\n");
+        
+        EXEC SQL OPEN cStudenti;
+        checkSQL("OPEN");
+        
+        int i = 1;
+        
+        while(1)
+    {
+        EXEC SQL 
+            FETCH       cStudenti
+            INTO        :hIndeks,
+                        :hIme,
+                        :hPrezime;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf("(%d) %d %s %s\n", i++, hIndeks, hIme, hPrezime);
+    }
+        
+         EXEC SQL CLOSE cStudenti;
+        checkSQL("CLOSE");
+    }
+    
+
+    EXEC SQL CLOSE cStudProg;
+    checkSQL("CLOSE");
+    
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
