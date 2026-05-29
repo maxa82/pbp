@@ -1,0 +1,290 @@
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+EXEC SQL BEGIN DECLARE SECTION;
+
+sqlint32 hIdPredmeta;
+sqlint32 hIdPrograma;
+short hSemestar;
+
+
+short hSkGodina;
+char hOznakaRoka[21];
+char hNazivRoka[31];
+
+EXEC SQL END DECLARE SECTION;
+
+void checkSQL(const char *str) {
+    if(SQLCODE < 0) {
+        fprintf(stderr, "Greska %d: %s\n", SQLCODE, str);
+
+        EXEC SQL ROLLBACK;
+
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+Zadatak 5.13: 
+
+Napisati C/SQL program koji omogućava korisniku da unese nove ispitne rokove u 2020. godini za svaki mesec od aprila do oktobra, sa odgovarajućim oznakama i nazivima. Za svaki ispitni rok postaviti da je datum početka prijavljivanja današnji datum pomeren za odgovarajući broj meseci, kao i da prijavljivanje traje 20 dana.
+
+Omogućiti da korisnik unese broj ispitnih rokova koji želi da kreira. Minimalni broj ispitnih rokova je 0, a maksimalni broj je 6. U zavisnosti od unetog broja, kreirati odgovarajući broj ispitnih rokova.
+
+Obezbediti da se navedene operacije izvrše zasebno.
+
+
+
+*/
+
+
+
+
+int main() {
+    EXEC SQL CONNECT TO stud2020 USER student USING abcdef;
+    checkSQL("Connect");
+    
+    
+    
+    printf("Unesite koliko ispitnih rokova zelite da unesete [0-6]\n");
+    
+    int broj = 0;
+    scanf("%d", &broj);
+    getchar(); // novi red
+    
+    
+    int i = 1;
+    while(broj > 0)
+    {
+        if(i == 1)
+        {
+            printf("Unesite ispitni rok za mesec april:\n");
+            
+           scanf("%hd", &hSkGodina); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            scanf("%s", hOznakaRoka); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            fgets(hNazivRoka, sizeof(hNazivRoka), stdin);
+            hNazivRoka[strcspn(hNazivRoka, "\n")] = '\0';
+            
+            EXEC SQL 
+                INSERT INTO DA.ISPITNIROK
+                VALUES (:hSkGodina, :hOznakaRoka, :hNazivRoka, CURRENT_DATE + (4 - MONTH(CURRENT_DATE)) MONTHS, CURRENT_DATE + (4 - MONTH(CURRENT_DATE)) MONTHS + 20 DAYS);
+            checkSQL("INSERT INTO");
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+            
+            
+        }else if(i == 2)
+        {
+            printf("Unesite ispitni rok za mesec maj:\n");
+            
+            scanf("%hd", &hSkGodina); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            scanf("%s", hOznakaRoka); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            fgets(hNazivRoka, sizeof(hNazivRoka), stdin);
+            hNazivRoka[strcspn(hNazivRoka, "\n")] = '\0';
+            
+            EXEC SQL 
+                INSERT INTO DA.ISPITNIROK
+                VALUES (:hSkGodina, :hOznakaRoka, :hNazivRoka, CURRENT_DATE + (MONTH(CURRENT_DATE) - 5) MONTHS, CURRENT_DATE + (MONTH(CURRENT_DATE) - 5) MONTHS + 20 DAYS);
+            checkSQL("INSERT INTO");
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+        }else if(i == 3)
+        {
+            printf("Unesite ispitni rok za mesec jun:\n");
+            
+            scanf("%hd", &hSkGodina); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            scanf("%s", hOznakaRoka); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            fgets(hNazivRoka, sizeof(hNazivRoka), stdin);
+            hNazivRoka[strcspn(hNazivRoka, "\n")] = '\0';
+            
+            EXEC SQL 
+                INSERT INTO DA.ISPITNIROK
+                VALUES (:hSkGodina, :hOznakaRoka, :hNazivRoka, CURRENT_DATE + (MONTH(CURRENT_DATE) - 6) MONTHS, CURRENT_DATE + (MONTH(CURRENT_DATE) - 6) MONTHS + 20 DAYS);
+            checkSQL("INSERT INTO");
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+        }else if(i == 4)
+        {
+            printf("Unesite ispitni rok za mesec jul:\n");
+            
+            scanf("%hd", &hSkGodina); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            scanf("%s", hOznakaRoka); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            fgets(hNazivRoka, sizeof(hNazivRoka), stdin);
+            hNazivRoka[strcspn(hNazivRoka, "\n")] = '\0';
+            
+            EXEC SQL 
+                INSERT INTO DA.ISPITNIROK
+                VALUES (:hSkGodina, :hOznakaRoka, :hNazivRoka, CURRENT_DATE + (MONTH(CURRENT_DATE) - 7) MONTHS, CURRENT_DATE + (MONTH(CURRENT_DATE) - 7) MONTHS + 20 DAYS);
+            checkSQL("INSERT INTO");
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+        }else if(i == 5)
+        {
+            printf("Unesite ispitni rok za mesec avgust:\n");
+            
+            scanf("%hd", &hSkGodina); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            scanf("%s", hOznakaRoka); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            fgets(hNazivRoka, sizeof(hNazivRoka), stdin);
+            hNazivRoka[strcspn(hNazivRoka, "\n")] = '\0';
+            
+            EXEC SQL 
+                INSERT INTO DA.ISPITNIROK
+                VALUES (:hSkGodina, :hOznakaRoka, :hNazivRoka, CURRENT_DATE + (MONTH(CURRENT_DATE) - 8) MONTHS, CURRENT_DATE + (MONTH(CURRENT_DATE) - 8) MONTHS + 20 DAYS);
+            checkSQL("INSERT INTO");
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+        }else if(i == 6)
+        {
+            printf("Unesite ispitni rok za mesec septembar:\n");
+            
+            scanf("%hd", &hSkGodina); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            scanf("%s", hOznakaRoka); // , hOznakaRoka); //, hNazivRoka);
+            getchar();
+            
+            fgets(hNazivRoka, sizeof(hNazivRoka), stdin);
+            hNazivRoka[strcspn(hNazivRoka, "\n")] = '\0';
+            
+            EXEC SQL 
+                INSERT INTO DA.ISPITNIROK
+                VALUES (:hSkGodina, :hOznakaRoka, :hNazivRoka, CURRENT_DATE + (MONTH(CURRENT_DATE) - 9) MONTHS, CURRENT_DATE + (MONTH(CURRENT_DATE) - 9) MONTHS + 20 DAYS);
+            checkSQL("INSERT INTO");
+            
+            EXEC SQL COMMIT;
+            checkSQL("COMMIT");
+            
+        }
+        
+        i++;
+        broj--;
+    }
+    
+   
+    EXEC SQL COMMIT;
+    checkSQL("Potvrdjivanje izmena");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("Connect reset");
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
