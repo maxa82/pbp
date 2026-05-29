@@ -1,0 +1,136 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hBroj;
+sqlint32 hIndeks;
+char hIme[51];
+char hPrezime[51];
+char hNaziv[51];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.11: Napisati C/SQL program kojim se sa standardnog ulaza unosi ime studijskog programa, a zatim se ispisuje 10 studenata tog smera koji imaju najviše neuspešnih polaganja na ispitima tokom studija. Izdvojiti ime, prezime, broj indeksa i broj neuspešnih polaganja tokom studija.
+
+
+*/
+
+        printf("Unesite ime studijskog programa: \n");
+        
+        scanf("%s", hNaziv);
+
+
+    EXEC SQL 
+        DECLARE cNeuspesna CURSOR FOR 
+        SELECT  I.INDEKS,
+                IME,
+                PREZIME, 
+                COUNT(*) AS BROJ_PALIH
+        FROM    DA.ISPIT I JOIN DA.DOSIJE D ON D.INDEKS = I.INDEKS JOIN DA.STUDIJSKIPROGRAM SP ON SP.ID = D.IDPROGRAMA
+        WHERE   I.OCENA = 5 AND I.STATUS = 'o' AND SP.NAZIV = :hNaziv
+        GROUP BY I.INDEKS, ime, prezime
+        ORDER BY 4 DESC
+        LIMIT 10
+        ;                          
+             
+    checkSQL("DECLARE 1");
+    
+   
+    
+    EXEC SQL OPEN cNeuspesna;
+    checkSQL("OPEN 1");
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cNeuspesna
+            INTO    :hIndeks,
+                    :hIme,
+                    :hPrezime, 
+                    :hBroj;
+        checkSQL("FETCH 1");
+        
+        if(SQLCODE == 100)
+            break;
+        
+        printf(" (%d) %s %s %d\n", hIndeks, hIme, hPrezime, hBroj);
+        
+        
+        
+    }
+    
+    
+    
+    EXEC SQL CLOSE cNeuspesna;
+    checkSQL("CLOSE 1");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
