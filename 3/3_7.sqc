@@ -1,0 +1,117 @@
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdbool.h>
+#include<sql.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+
+//deklaracije funkcija
+
+EXEC SQL BEGIN DECLARE SECTION;
+sqlint32 hBrojPojavljivanja;
+char hIme[51];
+EXEC SQL END DECLARE SECTION;
+
+
+
+void checkSQL(const char *msg)
+{
+    if(SQLCODE < 0)
+    {
+        char Buffer[1024];
+        short BufferSize = sizeof(Buffer);
+        short LineWidth = 50;
+        
+        sqlaintp(Buffer, BufferSize, LineWidth, &sqlca);
+        
+        fprintf(stderr, "Greska! %d %s\n", SQLCODE, msg);
+        fprintf(stderr, "%s\n", Buffer);
+        
+        EXEC SQL ROLLBACK;
+        
+        EXEC SQL CONNECT RESET;
+        exit(EXIT_FAILURE);
+        
+    }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    
+    EXEC SQL CONNECT TO STUD2020 USER student USING abcdef;
+    checkSQL("CONNECT TO");
+    
+    
+/*
+Zadatak 3.7: Napisati C/SQL program koji ispisuje sva ženska imena koja postoje među studentima (zajedno sa brojem pojavljivanja) u opadajućem poretku.
+
+
+*/
+
+    EXEC SQL 
+        DECLARE     cZenska     CURSOR FOR
+        SELECT      IME, COUNT(*)
+        FROM DA.DOSIJE 
+        WHERE   POL = 'z'
+        GROUP BY IME
+        ORDER BY 2 DESC;
+    checkSQL("DECLARE");
+    
+    
+    EXEC SQL OPEN cZenska;
+    checkSQL("OPEN");
+        
+    
+    while(1)
+    {
+        EXEC SQL 
+            FETCH   cZenska
+            INTO    :hIme,
+                    :hBrojPojavljivanja;
+        checkSQL("FETCH");
+        
+        if(SQLCODE == 100)
+            break;
+
+        printf("%s %d\n", hIme, hBrojPojavljivanja);
+        
+    }
+    
+    
+    EXEC SQL CLOSE cZenska;
+    checkSQL("CLOSE");
+    
+    EXEC SQL COMMIT;
+    checkSQL("COMMIT PRE KRAJA");
+    
+    EXEC SQL CONNECT RESET;
+    checkSQL("CONNECT RESET");
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
